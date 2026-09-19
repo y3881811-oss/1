@@ -28,6 +28,6 @@ dependencyResolutionManagement {
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 rootProject.name = "my-ime" // fixme Replace with your own app’s name
 include(
-    ":app",
+    ":mobile",
     
 )
