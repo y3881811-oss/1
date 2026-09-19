@@ -2,10 +2,8 @@ import java.io.FileInputStream
 import java.util.Properties
 
 plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.kotlin.parcelize)
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
 }
 
 private val gitCommitsCount: Int by lazy {
