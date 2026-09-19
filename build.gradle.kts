@@ -1,17 +1,38 @@
 plugins {
-    alias(libs.plugins.android.application) apply false
-    alias(libs.plugins.android.library) apply false
-    alias(libs.plugins.android.lint) apply false
-    alias(libs.plugins.kotlin.serialization) apply false
-    alias(libs.plugins.kotlin.parcelize) apply false
-    alias(libs.plugins.kotlin.compose) apply false
-    alias(libs.plugins.detekt)
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
 }
 
-detekt {
-    config.setFrom("$projectDir/.github/detekt.yml")
+android {
+    namespace = "com.example.myime"
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "com.example.myime"
+        minSdk = 24
+        targetSdk = 34
+        versionCode = 1
+        versionName = "0.1"
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
 }
 
-subprojects {
-    apply(plugin = "io.gitlab.arturbosch.detekt")
+dependencies {
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.android.material:material:1.11.0")
 }
