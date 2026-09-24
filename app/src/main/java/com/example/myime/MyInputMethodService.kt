@@ -14,186 +14,226 @@ import android.widget.TextView
 
 class MyInputMethodService : InputMethodService() {
 
+    private enum class KeyboardMode { LETTERS, NUMBERS, SYMBOLS }
+    private enum class InputMode { EN, ZH }
+    private enum class KeyType { CHAR, SHIFT, BACKSPACE, ENTER, SPACE, MODE_SWITCH, LANG_SWITCH }
+
+    private data class Key(
+        val label: String,
+        val alt: String? = null,
+        val weight: Float = 1f,
+        val type: KeyType = KeyType.CHAR,
+        val target: KeyboardMode? = null
+    )
+
+    private var keyboardMode = KeyboardMode.LETTERS
+    private var inputMode = InputMode.EN
     private var isShifted = false
-    private val letterViews = mutableListOf<Pair<TextView, String>>()
-    private var shiftView: TextView? = null
+
+    private var rootView: LinearLayout? = null
 
     override fun onCreateInputView(): View {
-        return buildKeyboardView()
-    }
-
-    private fun buildKeyboardView(): View {
-        letterViews.clear()
-        shiftView = null
-
-        val keyboard = LinearLayout(this).apply {
+        val view = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.parseColor("#D1D5DB"))
             setPadding(dp(3), dp(8), dp(3), dp(8))
         }
-
-        // 第一行：q w e r t y u i o p
-        val row1 = createRow()
-        listOf(
-            "q" to "1", "w" to "2", "e" to "3", "r" to "4", "t" to "5",
-            "y" to "6", "u" to "7", "i" to "8", "o" to "9", "p" to "0"
-        ).forEach { (letter, alt) ->
-            row1.addView(createLetterKey(letter, alt, 1f))
-        }
-        keyboard.addView(row1)
-
-        // 第二行：a s d f g h j k l
-        val row2 = createRow()
-        listOf(
-            "a" to "~", "s" to "!", "d" to "@", "f" to "#",
-            "g" to "%", "h" to "'", "j" to "&", "k" to "*", "l" to "?"
-        ).forEach { (letter, alt) ->
-            row2.addView(createLetterKey(letter, alt, 1f))
-        }
-        keyboard.addView(row2)
-
-        // 第三行：Shift + z x c v b n m + Backspace
-        val row3 = createRow()
-        val shift = createFunctionKey("⇧", 1.4f, active = isShifted) {
-            isShifted = !isShifted
-            updateShiftState()
-        }
-        shiftView = shift
-        row3.addView(shift)
-        for (c in "zxcvbnm") {
-            row3.addView(createLetterKey(c.toString(), null, 1f))
-        }
-        row3.addView(createFunctionKey("⌫", 1.4f, active = false) {
-            deleteBackward()
-        })
-        keyboard.addView(row3)
-
-        // 第四行
-        val row4 = createRow()
-        row4.addView(createFunctionKey("!?#", 1f, active = false) { /* TODO 符号布局 */ })
-        row4.addView(createFunctionKey("123", 1f, active = false) { /* TODO 数字布局 */ })
-        row4.addView(createFunctionKey(",", 0.7f, active = false) { commit(",") })
-        row4.addView(createSpaceKey(4.5f))
-        row4.addView(createFunctionKey(".", 0.7f, active = false) { commit(".") })
-        row4.addView(createFunctionKey("中/英", 1.2f, active = false) { /* TODO 中英切换 */ })
-        row4.addView(createFunctionKey("换行", 1.4f, active = false) { sendEnterKey() })
-        keyboard.addView(row4)
-
-        updateShiftState()
-        return keyboard
+        rootView = view
+        rebuildKeyboard()
+        return view
     }
 
-    private fun createRow(): LinearLayout {
+    private fun rebuildKeyboard() {
+        val root = rootView ?: return
+        root.removeAllViews()
+        val rows = when (keyboardMode) {
+            KeyboardMode.LETTERS -> letterRows()
+            KeyboardMode.NUMBERS -> numberRows()
+            KeyboardMode.SYMBOLS -> symbolRows()
+        }
+        for (row in rows) root.addView(buildRow(row))
+    }
+
+    // ================= 布局定义 =================
+
+    private fun letterRows(): List<List<Key>> = listOf(
+        listOf(
+            Key("q", "1"), Key("w", "2"), Key("e", "3"), Key("r", "4"), Key("t", "5"),
+            Key("y", "6"), Key("u", "7"), Key("i", "8"), Key("o", "9"), Key("p", "0")
+        ),
+        listOf(
+            Key("a", "~"), Key("s", "!"), Key("d", "@"), Key("f", "#"),
+            Key("g", "%"), Key("h", "'"), Key("j", "&"), Key("k", "*"), Key("l", "?")
+        ),
+        listOf(
+            Key("⇧", weight = 1.4f, type = KeyType.SHIFT),
+            Key("z"), Key("x"), Key("c"), Key("v"), Key("b"), Key("n"), Key("m"),
+            Key("⌫", weight = 1.4f, type = KeyType.BACKSPACE)
+        ),
+        listOf(
+            Key("!?#", type = KeyType.MODE_SWITCH, target = KeyboardMode.SYMBOLS),
+            Key("123", type = KeyType.MODE_SWITCH, target = KeyboardMode.NUMBERS),
+            Key(",", weight = 0.7f),
+            Key("🎤", weight = 4.5f, type = KeyType.SPACE),
+            Key(".", weight = 0.7f),
+            Key(langLabel(), weight = 1.2f, type = KeyType.LANG_SWITCH),
+            Key("换行", weight = 1.4f, type = KeyType.ENTER)
+        )
+    )
+
+    private fun numberRows(): List<List<Key>> = listOf(
+        listOf(
+            Key("1"), Key("2"), Key("3"), Key("4"), Key("5"),
+            Key("6"), Key("7"), Key("8"), Key("9"), Key("0")
+        ),
+        listOf(
+            Key("-"), Key("/"), Key(":"), Key(";"), Key("("),
+            Key(")"), Key("$"), Key("&"), Key("@"), Key("\"")
+        ),
+        listOf(
+            Key("#+=", weight = 1.4f, type = KeyType.MODE_SWITCH, target = KeyboardMode.SYMBOLS),
+            Key("."), Key(","), Key("?"), Key("!"), Key("'"),
+            Key("⌫", weight = 1.4f, type = KeyType.BACKSPACE)
+        ),
+        listOf(
+            Key("ABC", type = KeyType.MODE_SWITCH, target = KeyboardMode.LETTERS),
+            Key(",", weight = 0.7f),
+            Key("🎤", weight = 4.5f, type = KeyType.SPACE),
+            Key(".", weight = 0.7f),
+            Key(langLabel(), weight = 1.2f, type = KeyType.LANG_SWITCH),
+            Key("换行", weight = 1.4f, type = KeyType.ENTER)
+        )
+    )
+
+    private fun symbolRows(): List<List<Key>> = listOf(
+        listOf(
+            Key("["), Key("]"), Key("{"), Key("}"), Key("#"),
+            Key("%"), Key("^"), Key("*"), Key("+"), Key("=")
+        ),
+        listOf(
+            Key("_"), Key("\\"), Key("|"), Key("~"), Key("<"),
+            Key(">"), Key("€"), Key("£"), Key("¥"), Key("•")
+        ),
+        listOf(
+            Key("123", weight = 1.4f, type = KeyType.MODE_SWITCH, target = KeyboardMode.NUMBERS),
+            Key("."), Key(","), Key("?"), Key("!"), Key("'"),
+            Key("⌫", weight = 1.4f, type = KeyType.BACKSPACE)
+        ),
+        listOf(
+            Key("ABC", type = KeyType.MODE_SWITCH, target = KeyboardMode.LETTERS),
+            Key(",", weight = 0.7f),
+            Key("🎤", weight = 4.5f, type = KeyType.SPACE),
+            Key(".", weight = 0.7f),
+            Key(langLabel(), weight = 1.2f, type = KeyType.LANG_SWITCH),
+            Key("换行", weight = 1.4f, type = KeyType.ENTER)
+        )
+    )
+
+    private fun langLabel(): String = if (inputMode == InputMode.EN) "EN" else "中"
+
+    // ================= 渲染 =================
+
+    private fun buildRow(keys: List<Key>): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 dp(54)
             )
+        }.also { row ->
+            for (key in keys) row.addView(createKeyView(key))
         }
     }
 
-    /**
-     * 字母键：主字母 + 上方小数字/符号（可选）。
-     */
-    private fun createLetterKey(letter: String, alt: String?, weight: Float): View {
+    private fun createKeyView(key: Key): View = when (key.type) {
+        KeyType.CHAR -> createCharKey(key)
+        KeyType.SPACE -> createFunctionKey(key) { currentInputConnection?.commitText(" ", 1) }
+        KeyType.BACKSPACE -> createFunctionKey(key) { deleteBackward() }
+        KeyType.ENTER -> createFunctionKey(key) { sendEnterKey() }
+        KeyType.SHIFT -> createFunctionKey(key, active = isShifted) {
+            isShifted = !isShifted
+            rebuildKeyboard()
+        }
+        KeyType.MODE_SWITCH -> createFunctionKey(key) {
+            key.target?.let {
+                keyboardMode = it
+                isShifted = false
+                rebuildKeyboard()
+            }
+        }
+        KeyType.LANG_SWITCH -> createFunctionKey(key) {
+            inputMode = if (inputMode == InputMode.EN) InputMode.ZH else InputMode.EN
+            rebuildKeyboard()
+        }
+    }
+
+    private fun createCharKey(key: Key): View {
+        val upper = isShifted && keyboardMode == KeyboardMode.LETTERS
+        val displayLabel = if (upper) key.label.uppercase() else key.label
+        val showAlt = key.alt != null && keyboardMode == KeyboardMode.LETTERS
+
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                weight
+                0, ViewGroup.LayoutParams.MATCH_PARENT, key.weight
             ).apply {
-                marginStart = dp(3)
-                marginEnd = dp(3)
+                marginStart = dp(3); marginEnd = dp(3)
             }
             background = createKeyBackground(isFunction = false, isActive = false)
             isClickable = true
             isFocusable = true
             setOnClickListener {
-                val text = if (isShifted) letter.uppercase() else letter
+                val text = if (isShifted && keyboardMode == KeyboardMode.LETTERS) {
+                    key.label.uppercase()
+                } else key.label
                 commit(text)
                 if (isShifted) {
                     isShifted = false
-                    updateShiftState()
+                    rebuildKeyboard()
                 }
             }
         }
 
-        if (alt != null) {
-            val altView = TextView(this).apply {
-                text = alt
+        if (showAlt) {
+            container.addView(TextView(this).apply {
+                text = key.alt
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
                 setTextColor(Color.parseColor("#333333"))
                 gravity = Gravity.CENTER
-            }
-            container.addView(altView, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
-            ).apply {
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f).apply {
                 topMargin = dp(4)
             })
         }
 
-        val mainView = TextView(this).apply {
-            text = if (isShifted) letter.uppercase() else letter
+        container.addView(TextView(this).apply {
+            text = displayLabel
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
             setTextColor(Color.BLACK)
             gravity = Gravity.CENTER
-        }
-        container.addView(mainView, LinearLayout.LayoutParams(
+        }, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, 0,
-            if (alt != null) 2f else 3f
+            if (showAlt) 2f else 3f
         ))
 
-        letterViews.add(mainView to letter)
         return container
     }
 
-    private fun createFunctionKey(
-        label: String,
-        weight: Float,
-        active: Boolean,
-        onClick: () -> Unit
-    ): TextView {
+    private fun createFunctionKey(key: Key, active: Boolean = false, onClick: () -> Unit): TextView {
         return TextView(this).apply {
-            text = label
+            text = key.label
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
             setTextColor(Color.BLACK)
             gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                weight
+                0, ViewGroup.LayoutParams.MATCH_PARENT, key.weight
             ).apply {
-                marginStart = dp(3)
-                marginEnd = dp(3)
+                marginStart = dp(3); marginEnd = dp(3)
             }
             background = createKeyBackground(isFunction = true, isActive = active)
             isClickable = true
             isFocusable = true
             setOnClickListener { onClick() }
-        }
-    }
-
-    private fun createSpaceKey(weight: Float): TextView {
-        return TextView(this).apply {
-            text = "🎤"
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-            setTextColor(Color.parseColor("#888888"))
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                weight
-            ).apply {
-                marginStart = dp(3)
-                marginEnd = dp(3)
-            }
-            background = createKeyBackground(isFunction = false, isActive = false)
-            isClickable = true
-            isFocusable = true
-            setOnClickListener { commit(" ") }
         }
     }
 
@@ -209,12 +249,7 @@ class MyInputMethodService : InputMethodService() {
         }
     }
 
-    private fun updateShiftState() {
-        for ((view, letter) in letterViews) {
-            view.text = if (isShifted) letter.uppercase() else letter
-        }
-        shiftView?.background = createKeyBackground(isFunction = true, isActive = isShifted)
-    }
+    // ================= 输入行为 =================
 
     private fun commit(text: String) {
         currentInputConnection?.commitText(text, 1)
@@ -223,11 +258,8 @@ class MyInputMethodService : InputMethodService() {
     private fun deleteBackward() {
         val ic = currentInputConnection ?: return
         val selected = ic.getSelectedText(0)
-        if (!selected.isNullOrEmpty()) {
-            ic.commitText("", 1)
-        } else {
-            ic.deleteSurroundingText(1, 0)
-        }
+        if (!selected.isNullOrEmpty()) ic.commitText("", 1)
+        else ic.deleteSurroundingText(1, 0)
     }
 
     private fun sendEnterKey() {
@@ -242,11 +274,9 @@ class MyInputMethodService : InputMethodService() {
         }
     }
 
-    private fun dp(value: Int): Int {
-        return TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_DIP,
-            value.toFloat(),
-            resources.displayMetrics
-        ).toInt()
-    }
+    private fun dp(value: Int): Int = TypedValue.applyDimension(
+        TypedValue.COMPLEX_UNIT_DIP,
+        value.toFloat(),
+        resources.displayMetrics
+    ).toInt()
 }
