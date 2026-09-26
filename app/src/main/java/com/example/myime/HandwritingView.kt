@@ -6,6 +6,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Typeface
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
@@ -21,6 +22,13 @@ class HandwritingView @JvmOverloads constructor(
         strokeWidth = 12f
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
+    }
+
+    private val hintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#BBBBBB")
+        textSize = 44f
+        textAlign = Paint.Align.CENTER
+        typeface = Typeface.DEFAULT
     }
 
     private var bitmap: Bitmap? = null
@@ -43,7 +51,6 @@ class HandwritingView @JvmOverloads constructor(
     }
 
     fun clear() {
-        val bmp = bitmap ?: return
         val cvs = bitmapCanvas ?: return
         cvs.drawColor(Color.WHITE)
         currentPath.reset()
@@ -65,6 +72,16 @@ class HandwritingView @JvmOverloads constructor(
         val bmp = bitmap ?: return
         canvas.drawBitmap(bmp, 0f, 0f, null)
         canvas.drawPath(currentPath, strokePaint)
+
+        // 空画布时显示提示文字
+        if (strokeCount == 0) {
+            canvas.drawText(
+                "在此处手写",
+                width / 2f,
+                height / 2f + 15f,
+                hintPaint
+            )
+        }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
