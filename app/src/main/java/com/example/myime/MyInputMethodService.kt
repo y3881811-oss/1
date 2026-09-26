@@ -27,6 +27,15 @@ class MyInputMethodService : InputMethodService() {
         val target: KeyboardMode? = null
     )
 
+    // 搜狗风格配色
+    private val colorKeyboardBg = Color.parseColor("#EDEEF0")
+    private val colorKeyBg = Color.WHITE
+    private val colorFunctionKeyBg = Color.parseColor("#C8CCD2")
+    private val colorEnterKeyBg = Color.parseColor("#4A90E2")
+    private val colorCandidateBg = Color.WHITE
+    private val colorTextPrimary = Color.parseColor("#111111")
+    private val colorTextAlt = Color.parseColor("#666666")
+
     private var keyboardMode = KeyboardMode.LETTERS
     private var inputMode = InputMode.EN
     private var isShifted = false
@@ -40,8 +49,8 @@ class MyInputMethodService : InputMethodService() {
     override fun onCreateInputView(): View {
         val view = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#D1D5DB"))
-            setPadding(dp(3), dp(6), dp(3), dp(6))
+            setBackgroundColor(colorKeyboardBg)
+            setPadding(dp(4), dp(8), dp(4), dp(8))
         }
         rootView = view
         rebuildKeyboard()
@@ -68,12 +77,13 @@ class MyInputMethodService : InputMethodService() {
         }
     }
 
+    // ============ 候选栏 ============
     private fun addCandidateBar(root: LinearLayout) {
         val bar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(Color.parseColor("#EFEFEF"))
+            setBackgroundColor(colorCandidateBg)
             layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, dp(40)
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(44)
             )
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(8), 0, dp(8), 0)
@@ -83,69 +93,85 @@ class MyInputMethodService : InputMethodService() {
         val scroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(40)
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(44)
             )
             addView(bar)
         }
 
+        // 白底 + 底部一条细分割线
         val wrapper = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
+            orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(40)
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(46)
             )
-            setBackgroundColor(Color.parseColor("#EFEFEF"))
-            addView(scroll)
         }
+        wrapper.addView(scroll, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(44)
+        ))
+        val divider = View(this).apply {
+            setBackgroundColor(Color.parseColor("#DDDDDD"))
+        }
+        wrapper.addView(divider, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(1)
+        ))
+
         root.addView(wrapper)
     }
 
+    // ============ 手写区域 ============
     private fun addHandwritingArea(root: LinearLayout) {
-        // 手写画布固定高度，避免占满屏幕
         val area = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(180)
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
             )
+            setPadding(dp(2), dp(6), dp(2), dp(6))
         }
 
-        // 左侧：手写画布
+        // 左：手写画布，白底圆角
         val hw = HandwritingView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.MATCH_PARENT, 1f
-            )
+            ).apply {
+                marginEnd = dp(6)
+            }
+            background = createRoundedBackground(Color.WHITE, dp(10))
             setRecognizer(recognizer)
             setOnResultListener { candidates -> updateCandidates(candidates) }
         }
         handwritingView = hw
         area.addView(hw)
 
-        // 右侧：标点 + 退格 竖列（5 个键）
+        // 右：竖排标点列
         val sideColumn = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(
                 dp(56), ViewGroup.LayoutParams.MATCH_PARENT
             )
         }
-        val sideKeys = listOf(
+        val sideKeys = listOf<Pair<String, () -> Unit>>(
             "⌫" to { deleteBackward() },
-            ","  to { commit(",") },
+            "，" to { commit("，") },
             "。" to { commit("。") },
-            "?"  to { commit("?") },
-            "!"  to { commit("!") }
+            "？" to { commit("？") },
+            "！" to { commit("！") }
         )
         for ((label, action) in sideKeys) {
+            val isFunctionKey = label == "⌫"
             val tv = TextView(this).apply {
                 text = label
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
-                setTextColor(Color.BLACK)
+                setTextColor(colorTextPrimary)
                 gravity = Gravity.CENTER
                 layoutParams = LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
                 ).apply {
-                    marginStart = dp(3)
-                    bottomMargin = dp(3)
+                    bottomMargin = dp(4)
                 }
-                background = createKeyBackground(isFunction = false, isActive = false)
+                background = createRoundedBackground(
+                    if (isFunctionKey) colorFunctionKeyBg else colorKeyBg,
+                    dp(8)
+                )
                 isClickable = true
                 isFocusable = true
                 setOnClickListener { action() }
@@ -156,11 +182,12 @@ class MyInputMethodService : InputMethodService() {
         root.addView(area)
     }
 
+    // ============ 手写模式底部功能行 ============
     private fun addHandwritingBottomRow(root: LinearLayout) {
         val bottomRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(50)
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(48)
             )
         }
         bottomRow.addView(createFunctionKey(
@@ -170,13 +197,13 @@ class MyInputMethodService : InputMethodService() {
             Key("空格", weight = 2.5f, type = KeyType.SPACE)
         ) { currentInputConnection?.commitText(" ", 1) })
         bottomRow.addView(createFunctionKey(
-            Key("EN", weight = 1.2f, type = KeyType.LANG_SWITCH)
+            Key("中/英", weight = 1.4f, type = KeyType.LANG_SWITCH)
         ) {
             inputMode = InputMode.EN
             keyboardMode = KeyboardMode.LETTERS
             rebuildKeyboard()
         })
-        bottomRow.addView(createFunctionKey(
+        bottomRow.addView(createEnterKey(
             Key("换行", weight = 1.4f, type = KeyType.ENTER)
         ) { sendEnterKey() })
         root.addView(bottomRow)
@@ -189,8 +216,8 @@ class MyInputMethodService : InputMethodService() {
             val tv = TextView(this).apply {
                 text = cand
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
-                setTextColor(Color.BLACK)
-                setPadding(dp(16), dp(4), dp(16), dp(4))
+                setTextColor(colorTextPrimary)
+                setPadding(dp(18), dp(4), dp(18), dp(4))
                 isClickable = true
                 isFocusable = true
                 setOnClickListener {
@@ -224,11 +251,11 @@ class MyInputMethodService : InputMethodService() {
             Key("⌫", weight = 1.4f, type = KeyType.BACKSPACE)
         ),
         listOf(
-            Key("!?#", type = KeyType.MODE_SWITCH, target = KeyboardMode.SYMBOLS),
+            Key("符", type = KeyType.MODE_SWITCH, target = KeyboardMode.SYMBOLS),
             Key("123", type = KeyType.MODE_SWITCH, target = KeyboardMode.NUMBERS),
-            Key(",", weight = 0.7f),
-            Key("🎤", weight = 4.5f, type = KeyType.SPACE),
-            Key(".", weight = 0.7f),
+            Key("，", weight = 0.8f),
+            Key("空格", weight = 4.5f, type = KeyType.SPACE),
+            Key("。", weight = 0.8f),
             Key(langLabel(), weight = 1.2f, type = KeyType.LANG_SWITCH),
             Key("换行", weight = 1.4f, type = KeyType.ENTER)
         )
@@ -250,9 +277,9 @@ class MyInputMethodService : InputMethodService() {
         ),
         listOf(
             Key("ABC", type = KeyType.MODE_SWITCH, target = KeyboardMode.LETTERS),
-            Key(",", weight = 0.7f),
-            Key("🎤", weight = 4.5f, type = KeyType.SPACE),
-            Key(".", weight = 0.7f),
+            Key("，", weight = 0.8f),
+            Key("空格", weight = 4.5f, type = KeyType.SPACE),
+            Key("。", weight = 0.8f),
             Key(langLabel(), weight = 1.2f, type = KeyType.LANG_SWITCH),
             Key("换行", weight = 1.4f, type = KeyType.ENTER)
         )
@@ -274,15 +301,15 @@ class MyInputMethodService : InputMethodService() {
         ),
         listOf(
             Key("ABC", type = KeyType.MODE_SWITCH, target = KeyboardMode.LETTERS),
-            Key(",", weight = 0.7f),
-            Key("🎤", weight = 4.5f, type = KeyType.SPACE),
-            Key(".", weight = 0.7f),
+            Key("，", weight = 0.8f),
+            Key("空格", weight = 4.5f, type = KeyType.SPACE),
+            Key("。", weight = 0.8f),
             Key(langLabel(), weight = 1.2f, type = KeyType.LANG_SWITCH),
             Key("换行", weight = 1.4f, type = KeyType.ENTER)
         )
     )
 
-    private fun langLabel(): String = if (inputMode == InputMode.EN) "EN" else "中"
+    private fun langLabel(): String = if (inputMode == InputMode.EN) "中/英" else "中/英"
 
     // ================= 渲染 =================
 
@@ -302,7 +329,7 @@ class MyInputMethodService : InputMethodService() {
         KeyType.CHAR -> createCharKey(key)
         KeyType.SPACE -> createFunctionKey(key) { currentInputConnection?.commitText(" ", 1) }
         KeyType.BACKSPACE -> createFunctionKey(key) { deleteBackward() }
-        KeyType.ENTER -> createFunctionKey(key) { sendEnterKey() }
+        KeyType.ENTER -> createEnterKey(key) { sendEnterKey() }
         KeyType.SHIFT -> createFunctionKey(key, active = isShifted) {
             isShifted = !isShifted
             rebuildKeyboard()
@@ -337,9 +364,10 @@ class MyInputMethodService : InputMethodService() {
             layoutParams = LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.MATCH_PARENT, key.weight
             ).apply {
-                marginStart = dp(2); marginEnd = dp(2)
+                marginStart = dp(3); marginEnd = dp(3)
+                topMargin = dp(3); bottomMargin = dp(3)
             }
-            background = createKeyBackground(isFunction = false, isActive = false)
+            background = createRoundedBackground(colorKeyBg, dp(10))
             isClickable = true
             isFocusable = true
             setOnClickListener {
@@ -357,18 +385,18 @@ class MyInputMethodService : InputMethodService() {
         if (showAlt) {
             container.addView(TextView(this).apply {
                 text = key.alt
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
-                setTextColor(Color.parseColor("#333333"))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+                setTextColor(colorTextAlt)
                 gravity = Gravity.CENTER
             }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f).apply {
-                topMargin = dp(2)
+                topMargin = dp(4)
             })
         }
 
         container.addView(TextView(this).apply {
             text = displayLabel
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
-            setTextColor(Color.BLACK)
+            setTextColor(colorTextPrimary)
             gravity = Gravity.CENTER
         }, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, 0,
@@ -382,29 +410,48 @@ class MyInputMethodService : InputMethodService() {
         return TextView(this).apply {
             text = key.label
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-            setTextColor(Color.BLACK)
+            setTextColor(colorTextPrimary)
             gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.MATCH_PARENT, key.weight
             ).apply {
-                marginStart = dp(2); marginEnd = dp(2)
+                marginStart = dp(3); marginEnd = dp(3)
+                topMargin = dp(3); bottomMargin = dp(3)
             }
-            background = createKeyBackground(isFunction = true, isActive = active)
+            background = createRoundedBackground(
+                if (active) Color.WHITE else colorFunctionKeyBg,
+                dp(10)
+            )
             isClickable = true
             isFocusable = true
             setOnClickListener { onClick() }
         }
     }
 
-    private fun createKeyBackground(isFunction: Boolean, isActive: Boolean): GradientDrawable {
+    private fun createEnterKey(key: Key, onClick: () -> Unit): TextView {
+        return TextView(this).apply {
+            text = key.label
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.MATCH_PARENT, key.weight
+            ).apply {
+                marginStart = dp(3); marginEnd = dp(3)
+                topMargin = dp(3); bottomMargin = dp(3)
+            }
+            background = createRoundedBackground(colorEnterKeyBg, dp(10))
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { onClick() }
+        }
+    }
+
+    private fun createRoundedBackground(color: Int, radius: Int): GradientDrawable {
         return GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
-            cornerRadius = dp(8).toFloat()
-            when {
-                isActive -> setColor(Color.WHITE)
-                isFunction -> setColor(Color.parseColor("#ADB3BC"))
-                else -> setColor(Color.WHITE)
-            }
+            cornerRadius = radius.toFloat()
+            setColor(color)
         }
     }
 
