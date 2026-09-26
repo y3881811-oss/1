@@ -1,7 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
-<input-method xmlns:android="http://schemas.android.com/apk/res/android">
-    <subtype
-        android:label="English"
-        android:imeSubtypeLocale="en_US"
-        android:imeSubtypeMode="keyboard" />
-</input-method>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="true"
+        android:label="MyIME"
+        android:supportsRtl="true">
+
+        <service
+            android:name=".MyInputMethodService"
+            android:exported="true"
+            android:label="MyIME"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/method" />
+        </service>
+
+    </application>
+
+</manifest>
