@@ -143,7 +143,7 @@ class MyInputMethodService : InputMethodService() {
                     ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
                 ).apply {
                     marginStart = dp(3)
-                    marginBottom = dp(3)
+                    bottomMargin = dp(3)
                 }
                 background = createKeyBackground(isFunction = false, isActive = false)
                 isClickable = true
