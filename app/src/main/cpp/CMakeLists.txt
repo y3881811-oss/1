@@ -10,8 +10,10 @@ set_target_properties(ncnn PROPERTIES
 # 编译 JNI 桥接库
 add_library(handwriting SHARED handwriting_jni.cpp)
 
+# 头文件搜索路径
 target_include_directories(handwriting PRIVATE
     ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/include/ncnn
 )
 
 target_link_libraries(handwriting
