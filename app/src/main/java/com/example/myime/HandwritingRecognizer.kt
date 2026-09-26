@@ -19,7 +19,11 @@ class HandwritingRecognizer(private val context: Context) {
             val text = context.assets.open("handwritten/charset.json")
                 .bufferedReader().use { it.readText() }
             val arr = JSONArray(text)
-            List(arr.length()) { arr.getString(it) }
+            val list = ArrayList<String>(arr.length())
+            for (i in 0 until arr.length()) {
+                list.add(arr.getString(i))
+            }
+            list
         } catch (e: Exception) {
             emptyList()
         }
@@ -28,7 +32,12 @@ class HandwritingRecognizer(private val context: Context) {
     fun recognize(bitmap: Bitmap, topK: Int = 5): List<String> {
         if (!initialized) return emptyList()
         val indices = nativeRecognize(bitmap, topK) ?: return emptyList()
-        return indices.mapNotNull { idx -> charset.getOrNull(idx) }
+        val result = ArrayList<String>(indices.size)
+        for (idx in indices) {
+            val ch = charset.getOrNull(idx)
+            if (ch != null) result.add(ch)
+        }
+        return result
     }
 
     private external fun nativeInit(assets: AssetManager): Boolean
