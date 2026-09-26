@@ -72,7 +72,7 @@ class MyInputMethodService : InputMethodService() {
             orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(Color.parseColor("#EFEFEF"))
             layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(44)
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(44)
             )
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(8), 0, dp(8), 0)
@@ -80,7 +80,7 @@ class MyInputMethodService : InputMethodService() {
         candidateBar = bar
 
         val scroll = HorizontalScrollView(this).apply {
-            horizontalScrollBarEnabled = false
+            isHorizontalScrollBarEnabled = false
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
