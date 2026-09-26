@@ -9,12 +9,13 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
 
 class MyInputMethodService : InputMethodService() {
 
-    private enum class KeyboardMode { LETTERS, NUMBERS, SYMBOLS }
+    private enum class KeyboardMode { LETTERS, NUMBERS, SYMBOLS, HANDWRITING }
     private enum class InputMode { EN, ZH }
     private enum class KeyType { CHAR, SHIFT, BACKSPACE, ENTER, SPACE, MODE_SWITCH, LANG_SWITCH }
 
@@ -31,6 +32,10 @@ class MyInputMethodService : InputMethodService() {
     private var isShifted = false
 
     private var rootView: LinearLayout? = null
+    private var candidateBar: LinearLayout? = null
+    private var handwritingView: HandwritingView? = null
+
+    private val recognizer by lazy { HandwritingRecognizer(this) }
 
     override fun onCreateInputView(): View {
         val view = LinearLayout(this).apply {
@@ -46,12 +51,122 @@ class MyInputMethodService : InputMethodService() {
     private fun rebuildKeyboard() {
         val root = rootView ?: return
         root.removeAllViews()
-        val rows = when (keyboardMode) {
-            KeyboardMode.LETTERS -> letterRows()
-            KeyboardMode.NUMBERS -> numberRows()
-            KeyboardMode.SYMBOLS -> symbolRows()
+        handwritingView = null
+
+        if (keyboardMode == KeyboardMode.HANDWRITING) {
+            addCandidateBar(root)
+            addHandwritingArea(root)
+        } else {
+            val rows = when (keyboardMode) {
+                KeyboardMode.LETTERS -> letterRows()
+                KeyboardMode.NUMBERS -> numberRows()
+                KeyboardMode.SYMBOLS -> symbolRows()
+                KeyboardMode.HANDWRITING -> return
+            }
+            for (row in rows) root.addView(buildRow(row))
         }
-        for (row in rows) root.addView(buildRow(row))
+    }
+
+    private fun addCandidateBar(root: LinearLayout) {
+        val bar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor(Color.parseColor("#EFEFEF"))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(44)
+            )
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), 0, dp(8), 0)
+        }
+        candidateBar = bar
+
+        val scroll = HorizontalScrollView(this).apply {
+            horizontalScrollBarEnabled = false
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            addView(bar)
+        }
+
+        val wrapper = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(44)
+            )
+            setBackgroundColor(Color.parseColor("#EFEFEF"))
+            addView(scroll)
+        }
+        root.addView(wrapper)
+    }
+
+    private fun addHandwritingArea(root: LinearLayout) {
+        val hw = HandwritingView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+            )
+            setRecognizer(recognizer)
+            setOnResultListener { candidates -> updateCandidates(candidates) }
+        }
+        handwritingView = hw
+        root.addView(hw)
+
+        val bottomRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(54)
+            )
+        }
+        bottomRow.addView(createFunctionKey(
+            Key("清空", weight = 1.2f, type = KeyType.CHAR)
+        ) { handwritingView?.clear(); clearCandidates() })
+        bottomRow.addView(createFunctionKey(
+            Key("空格", weight = 1.2f, type = KeyType.SPACE)
+        ) { currentInputConnection?.commitText(" ", 1) })
+        bottomRow.addView(createFunctionKey(
+            Key("⌫", weight = 1.2f, type = KeyType.BACKSPACE)
+        ) { deleteBackward() })
+        bottomRow.addView(createFunctionKey(
+            Key(",", weight = 0.7f, type = KeyType.CHAR)
+        ) { commit(",") })
+        bottomRow.addView(createFunctionKey(
+            Key(".", weight = 0.7f, type = KeyType.CHAR)
+        ) { commit(".") })
+        bottomRow.addView(createFunctionKey(
+            Key("EN", weight = 1.2f, type = KeyType.LANG_SWITCH)
+        ) {
+            inputMode = InputMode.EN
+            keyboardMode = KeyboardMode.LETTERS
+            rebuildKeyboard()
+        })
+        bottomRow.addView(createFunctionKey(
+            Key("换行", weight = 1.4f, type = KeyType.ENTER)
+        ) { sendEnterKey() })
+        root.addView(bottomRow)
+    }
+
+    private fun updateCandidates(candidates: List<String>) {
+        val bar = candidateBar ?: return
+        bar.removeAllViews()
+        for (cand in candidates) {
+            val tv = TextView(this).apply {
+                text = cand
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
+                setTextColor(Color.BLACK)
+                setPadding(dp(20), dp(6), dp(20), dp(6))
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    commit(cand)
+                    handwritingView?.clear()
+                    clearCandidates()
+                }
+            }
+            bar.addView(tv)
+        }
+    }
+
+    private fun clearCandidates() {
+        candidateBar?.removeAllViews()
     }
 
     // ================= 布局定义 =================
@@ -162,7 +277,13 @@ class MyInputMethodService : InputMethodService() {
             }
         }
         KeyType.LANG_SWITCH -> createFunctionKey(key) {
-            inputMode = if (inputMode == InputMode.EN) InputMode.ZH else InputMode.EN
+            if (inputMode == InputMode.EN) {
+                inputMode = InputMode.ZH
+                keyboardMode = KeyboardMode.HANDWRITING
+            } else {
+                inputMode = InputMode.EN
+                keyboardMode = KeyboardMode.LETTERS
+            }
             rebuildKeyboard()
         }
     }
