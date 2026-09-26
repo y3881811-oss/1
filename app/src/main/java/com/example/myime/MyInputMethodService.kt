@@ -50,7 +50,7 @@ class MyInputMethodService : InputMethodService() {
         val view = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(colorKeyboardBg)
-            setPadding(dp(4), dp(8), dp(4), dp(8))
+            setPadding(dp(4), dp(6), dp(4), dp(6))
         }
         rootView = view
         rebuildKeyboard()
@@ -98,7 +98,6 @@ class MyInputMethodService : InputMethodService() {
             addView(bar)
         }
 
-        // 白底 + 底部一条细分割线
         val wrapper = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(
@@ -118,35 +117,36 @@ class MyInputMethodService : InputMethodService() {
         root.addView(wrapper)
     }
 
-    // ============ 手写区域 ============
+    // ============ 手写区域（模仿搜狗：大画布 + 右侧标点列） ============
     private fun addHandwritingArea(root: LinearLayout) {
+        // 手写区整体高度：约 230dp，比之前 180dp 更接近搜狗比例
         val area = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(230)
             )
             setPadding(dp(2), dp(6), dp(2), dp(6))
         }
 
-        // 左：手写画布，白底圆角
+        // 左：手写画布，白底大圆角
         val hw = HandwritingView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.MATCH_PARENT, 1f
             ).apply {
                 marginEnd = dp(6)
             }
-            background = createRoundedBackground(Color.WHITE, dp(10))
+            background = createRoundedBackground(Color.WHITE, dp(12))
             setRecognizer(recognizer)
             setOnResultListener { candidates -> updateCandidates(candidates) }
         }
         handwritingView = hw
         area.addView(hw)
 
-        // 右：竖排标点列
+        // 右：竖排标点列，宽度 64dp
         val sideColumn = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(
-                dp(56), ViewGroup.LayoutParams.MATCH_PARENT
+                dp(64), ViewGroup.LayoutParams.MATCH_PARENT
             )
         }
         val sideKeys = listOf<Pair<String, () -> Unit>>(
@@ -156,7 +156,8 @@ class MyInputMethodService : InputMethodService() {
             "？" to { commit("？") },
             "！" to { commit("！") }
         )
-        for ((label, action) in sideKeys) {
+        for ((index, pair) in sideKeys.withIndex()) {
+            val (label, action) = pair
             val isFunctionKey = label == "⌫"
             val tv = TextView(this).apply {
                 text = label
@@ -166,11 +167,11 @@ class MyInputMethodService : InputMethodService() {
                 layoutParams = LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
                 ).apply {
-                    bottomMargin = dp(4)
+                    if (index > 0) topMargin = dp(4)
                 }
                 background = createRoundedBackground(
                     if (isFunctionKey) colorFunctionKeyBg else colorKeyBg,
-                    dp(8)
+                    dp(10)
                 )
                 isClickable = true
                 isFocusable = true
@@ -187,7 +188,7 @@ class MyInputMethodService : InputMethodService() {
         val bottomRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(48)
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(50)
             )
         }
         bottomRow.addView(createFunctionKey(
