@@ -9,6 +9,7 @@
         <service
             android:name=".MyInputMethodService"
             android:exported="true"
+            android:label="MyIME"
             android:permission="android.permission.BIND_INPUT_METHOD">
             <intent-filter>
                 <action android:name="android.view.InputMethod" />
