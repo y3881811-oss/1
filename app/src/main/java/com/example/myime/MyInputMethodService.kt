@@ -41,7 +41,7 @@ class MyInputMethodService : InputMethodService() {
         val view = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.parseColor("#D1D5DB"))
-            setPadding(dp(3), dp(8), dp(3), dp(8))
+            setPadding(dp(3), dp(6), dp(3), dp(6))
         }
         rootView = view
         rebuildKeyboard()
@@ -56,6 +56,7 @@ class MyInputMethodService : InputMethodService() {
         if (keyboardMode == KeyboardMode.HANDWRITING) {
             addCandidateBar(root)
             addHandwritingArea(root)
+            addHandwritingBottomRow(root)
         } else {
             val rows = when (keyboardMode) {
                 KeyboardMode.LETTERS -> letterRows()
@@ -72,7 +73,7 @@ class MyInputMethodService : InputMethodService() {
             orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(Color.parseColor("#EFEFEF"))
             layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, dp(44)
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(40)
             )
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(8), 0, dp(8), 0)
@@ -82,8 +83,7 @@ class MyInputMethodService : InputMethodService() {
         val scroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(40)
             )
             addView(bar)
         }
@@ -91,7 +91,7 @@ class MyInputMethodService : InputMethodService() {
         val wrapper = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(44)
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(40)
             )
             setBackgroundColor(Color.parseColor("#EFEFEF"))
             addView(scroll)
@@ -100,37 +100,75 @@ class MyInputMethodService : InputMethodService() {
     }
 
     private fun addHandwritingArea(root: LinearLayout) {
+        // 手写画布固定高度，避免占满屏幕
+        val area = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(180)
+            )
+        }
+
+        // 左侧：手写画布
         val hw = HandwritingView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+                0, ViewGroup.LayoutParams.MATCH_PARENT, 1f
             )
             setRecognizer(recognizer)
             setOnResultListener { candidates -> updateCandidates(candidates) }
         }
         handwritingView = hw
-        root.addView(hw)
+        area.addView(hw)
 
+        // 右侧：标点 + 退格 竖列（5 个键）
+        val sideColumn = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                dp(56), ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        }
+        val sideKeys = listOf(
+            "⌫" to { deleteBackward() },
+            ","  to { commit(",") },
+            "。" to { commit("。") },
+            "?"  to { commit("?") },
+            "!"  to { commit("!") }
+        )
+        for ((label, action) in sideKeys) {
+            val tv = TextView(this).apply {
+                text = label
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+                setTextColor(Color.BLACK)
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+                ).apply {
+                    marginStart = dp(3)
+                    marginBottom = dp(3)
+                }
+                background = createKeyBackground(isFunction = false, isActive = false)
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { action() }
+            }
+            sideColumn.addView(tv)
+        }
+        area.addView(sideColumn)
+        root.addView(area)
+    }
+
+    private fun addHandwritingBottomRow(root: LinearLayout) {
         val bottomRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(54)
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(50)
             )
         }
         bottomRow.addView(createFunctionKey(
             Key("清空", weight = 1.2f, type = KeyType.CHAR)
         ) { handwritingView?.clear(); clearCandidates() })
         bottomRow.addView(createFunctionKey(
-            Key("空格", weight = 1.2f, type = KeyType.SPACE)
+            Key("空格", weight = 2.5f, type = KeyType.SPACE)
         ) { currentInputConnection?.commitText(" ", 1) })
-        bottomRow.addView(createFunctionKey(
-            Key("⌫", weight = 1.2f, type = KeyType.BACKSPACE)
-        ) { deleteBackward() })
-        bottomRow.addView(createFunctionKey(
-            Key(",", weight = 0.7f, type = KeyType.CHAR)
-        ) { commit(",") })
-        bottomRow.addView(createFunctionKey(
-            Key(".", weight = 0.7f, type = KeyType.CHAR)
-        ) { commit(".") })
         bottomRow.addView(createFunctionKey(
             Key("EN", weight = 1.2f, type = KeyType.LANG_SWITCH)
         ) {
@@ -152,7 +190,7 @@ class MyInputMethodService : InputMethodService() {
                 text = cand
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
                 setTextColor(Color.BLACK)
-                setPadding(dp(20), dp(6), dp(20), dp(6))
+                setPadding(dp(16), dp(4), dp(16), dp(4))
                 isClickable = true
                 isFocusable = true
                 setOnClickListener {
@@ -253,7 +291,7 @@ class MyInputMethodService : InputMethodService() {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(54)
+                dp(52)
             )
         }.also { row ->
             for (key in keys) row.addView(createKeyView(key))
@@ -299,7 +337,7 @@ class MyInputMethodService : InputMethodService() {
             layoutParams = LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.MATCH_PARENT, key.weight
             ).apply {
-                marginStart = dp(3); marginEnd = dp(3)
+                marginStart = dp(2); marginEnd = dp(2)
             }
             background = createKeyBackground(isFunction = false, isActive = false)
             isClickable = true
@@ -323,7 +361,7 @@ class MyInputMethodService : InputMethodService() {
                 setTextColor(Color.parseColor("#333333"))
                 gravity = Gravity.CENTER
             }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f).apply {
-                topMargin = dp(4)
+                topMargin = dp(2)
             })
         }
 
@@ -343,13 +381,13 @@ class MyInputMethodService : InputMethodService() {
     private fun createFunctionKey(key: Key, active: Boolean = false, onClick: () -> Unit): TextView {
         return TextView(this).apply {
             text = key.label
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
             setTextColor(Color.BLACK)
             gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.MATCH_PARENT, key.weight
             ).apply {
-                marginStart = dp(3); marginEnd = dp(3)
+                marginStart = dp(2); marginEnd = dp(2)
             }
             background = createKeyBackground(isFunction = true, isActive = active)
             isClickable = true
