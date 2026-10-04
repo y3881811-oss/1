@@ -21,19 +21,19 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # 新增步骤1：使用官方 Gradle 缓存
+      # 使用官方 Gradle 缓存
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          cache-provider: 'basic'   # 个人用户推荐 basic，完全免费
+          cache-provider: 'basic'
 
-      # 新增步骤2：缓存 Android SDK 避免每次重复下载
+      # 动态 Key：不用管版本号，改了 Workflow 或 gradle 文件，自动生成新缓存
       - name: Cache Android SDK
         uses: actions/cache@v4
         id: cache-android-sdk
         with:
           path: /usr/local/lib/android/sdk
-          key: ${{ runner.os }}-android-sdk-34-ndk26.1-cmake3.22.1
+          key: ${{ runner.os }}-android-sdk-${{ hashFiles('.github/workflows/*.yml', '**/build.gradle*', '**/gradle.properties') }}
           restore-keys: |
             ${{ runner.os }}-android-sdk-
 
