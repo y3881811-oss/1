@@ -10,3 +10,11 @@ generated
 /.github/keystore.properties
 /.github/keystore_release.jks
 local.properties
+# 忽略签名文件
+*.jks
+*.keystore
+release.keystore
+
+# 忽略包含本地密钥的属性文件
+local.properties
+secrets.properties
